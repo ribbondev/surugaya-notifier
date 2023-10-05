@@ -1,0 +1,8 @@
+.idea/
+node_modules/
+state/
+venv/
+.dockerignore
+.gitignore
+docker-compose.yml
+Dockerfile
