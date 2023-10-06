@@ -3,6 +3,9 @@ version: '3.7'
 services:
   notifier:
     image: aixxe.net/notifier:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     volumes:
       - data:/srv/app/data
       - ./config.json:/srv/app/config.json
