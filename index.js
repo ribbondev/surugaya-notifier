@@ -2,11 +2,10 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const child_process = require('node:child_process');
 
-const CATEGORY = process.env.NOTIFY_CATEGORY;
-const KEYWORD = process.env.NOTIFY_KEYWORD;
-const WEBHOOK_URL = process.env.NOTIFY_WEBHOOK_URL;
+const config = require('./config.json');
 
 const parse = (buffer) =>
 {
@@ -51,17 +50,26 @@ const parseRemote = async (category, keyword) =>
 
 const populateInitialState = async () =>
 {
-	if (fs.existsSync('./state/last.json'))
-		return false;
+	let stale = [];
 
-	console.log('storing current results as initial state');
+	for (const topic of config.watchlist)
+	{
+		const filename = getStatePath(topic.keyword);
 
-	const initial = await parseRemote(CATEGORY, KEYWORD);
+		if (fs.existsSync(filename))
+		{
+			stale.push(topic);
+			continue;
+		}
 
-	await fs.promises.mkdir('./state', { recursive: true });
-	await fs.promises.writeFile('./state/last.json', JSON.stringify(initial));
+		console.log(`storing initial state for topic '${topic.keyword}'`);
 
-	return true;
+		const initial = await parseRemote(topic.category || null, topic.keyword);
+
+		await fs.promises.writeFile(filename, JSON.stringify(initial));
+	}
+
+	return stale;
 }
 
 const makeEmbed = (product) =>
@@ -102,44 +110,71 @@ const makeEmbed = (product) =>
 const fireWebhook = async (embeds) =>
 {
 	const body = { 'content': null, embeds, 'attachments': [] };
-	await fetch(WEBHOOK_URL, {
+	await fetch(config.webhook_url, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify(body),
 	});
 }
 
-const compare = async () =>
+const getStatePath = (keyword) =>
 {
-	const previous = JSON.parse(await fs.promises.readFile('./state/last.json', 'utf8'))
-	const current = await parseRemote(CATEGORY, KEYWORD);
+	const base = path.resolve('./data/state');
 
-	const added = Object.keys(current).filter(id => !previous[id]).map(id => current[id]);
+	if (!keyword)
+		return base;
 
-	console.log(`found ${added.length} new products`);
+	const hash = crypto.createHash('sha256');
+	hash.update(keyword);
 
-	if (!added.length)
-		return;
+	return path.join(base, `${hash.digest('hex')}.json`);
+}
 
-	await fs.promises.writeFile('./state/last.json', JSON.stringify(current));
+const compare = async (topics) =>
+{
+	let watchlist = config.watchlist;
 
-	const embeds = [];
+	if (topics && topics.length)
+		watchlist = topics;
 
-	for (const product of added)
-		embeds.push(makeEmbed(product));
+	for (const topic of watchlist)
+	{
+		console.log(`updating topic '${topic.keyword}'`);
 
-	for (let i = 0; i < embeds.length; i += 10)
-		await fireWebhook(embeds.slice(i, i + 10));
+		const filename = getStatePath(topic.keyword);
+
+		const previous = JSON.parse(await fs.promises.readFile(filename, 'utf8'))
+		const current = await parseRemote(topic.category || null, topic.keyword);
+
+		const added = Object.keys(current).filter(id => !previous[id]).map(id => current[id]);
+
+		console.log(`found ${added.length} new products`);
+
+		if (!added.length)
+			continue;
+
+		await fs.promises.writeFile(filename, JSON.stringify(current));
+
+		const embeds = [];
+
+		for (const product of added)
+			embeds.push(makeEmbed(product));
+
+		for (let i = 0; i < embeds.length; i += 10)
+			await fireWebhook(embeds.slice(i, i + 10));
+	}
 }
 
 (async () =>
 {
-	setInterval(compare, 15 * 60 * 1000);
+	console.log(`watching ${config.watchlist.length} keyword(s)`);
+	console.log(`polling every ${config.poll_interval} minute(s)`);
 
-	if (await populateInitialState())
-		return;
+	setInterval(compare, config.poll_interval * 60 * 1000);
 
-	await compare();
+	await fs.promises.mkdir(getStatePath(), { recursive: true });
+
+	setTimeout(compare, 60 * 1000, await populateInitialState());
 }) ();
 
 process.on('SIGTERM', () => process.exit(0));

@@ -3,12 +3,10 @@ version: '3.7'
 services:
   notifier:
     image: aixxe.net/notifier:latest
-    environment:
-      NOTIFY_KEYWORD: 'search term goes here'
-      NOTIFY_WEBHOOK_URL: 'https://discord.com/api/webhooks/.../...'
     volumes:
-      - state:/srv/app/state
-    restart: unless-stopped
+      - data:/srv/app/data
+      - ./config.json:/srv/app/config.json
+    restart: always
 
 volumes:
-  state:
+  data:

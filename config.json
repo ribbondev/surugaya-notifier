@@ -1,0 +1,8 @@
+{
+  "poll_interval": 15,
+  "webhook_url": "https://discord.com/api/webhooks/.../...",
+  "watchlist": [
+    {"keyword": "keyword 1"},
+    {"keyword": "keyword 2", "category": 1000}
+  ]
+}

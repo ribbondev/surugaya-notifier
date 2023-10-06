@@ -7,8 +7,7 @@ COPY requirements.txt package.json package-lock.json ./
 RUN apk add nodejs python3 py3-virtualenv \
  && apk add --virtual .build-deps shadow npm build-base libffi-dev python3-dev \
  && useradd --home-dir=/srv/app --system --shell /sbin/nologin --user-group app \
- && mkdir -p /srv/app/state \
- && chown app:app /srv/app/state \
+ && mkdir -p /srv/app/data \
  && virtualenv venv \
  && source venv/bin/activate \
  && pip install -r /srv/app/requirements.txt \
