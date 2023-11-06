@@ -44,6 +44,7 @@ const parseRemote = async (category, keyword) =>
 	job.stdout.on('data', data => buffer += data);
 
 	await new Promise(resolve => job.on('close', resolve));
+	console.log(`updated state for '${keyword}' [${category || 'all'}]`);
 
 	return parse(buffer);
 }
@@ -54,7 +55,7 @@ const populateInitialState = async () =>
 
 	for (const topic of config.watchlist)
 	{
-		const filename = getStatePath(topic.keyword);
+		const filename = getStatePath(topic);
 
 		if (fs.existsSync(filename))
 		{
@@ -62,7 +63,7 @@ const populateInitialState = async () =>
 			continue;
 		}
 
-		console.log(`storing initial state for topic '${topic.keyword}'`);
+		console.log(`storing initial state for topic '${topic.keyword}' [${filename}]`);
 
 		const initial = await parseRemote(topic.category || null, topic.keyword);
 
@@ -117,15 +118,15 @@ const fireWebhook = async (embeds) =>
 	});
 }
 
-const getStatePath = (keyword) =>
+const getStatePath = (topic) =>
 {
 	const base = path.resolve('./data/state');
 
-	if (!keyword)
+	if (!topic)
 		return base;
 
 	const hash = crypto.createHash('sha256');
-	hash.update(keyword);
+	hash.update(topic.keyword + (topic.category || ''));
 
 	return path.join(base, `${hash.digest('hex')}.json`);
 }
@@ -139,9 +140,9 @@ const compare = async (topics) =>
 
 	for (const topic of watchlist)
 	{
-		console.log(`updating topic '${topic.keyword}'`);
+		console.log(`updating topic '${topic.keyword}' [${topic.category || 'all'}]`);
 
-		const filename = getStatePath(topic.keyword);
+		const filename = getStatePath(topic);
 
 		const previous = JSON.parse(await fs.promises.readFile(filename, 'utf8'))
 		const current = await parseRemote(topic.category || null, topic.keyword);
@@ -167,7 +168,7 @@ const compare = async (topics) =>
 
 (async () =>
 {
-	console.log(`watching ${config.watchlist.length} keyword(s)`);
+	console.log(`watching ${config.watchlist.length} topic(s)`);
 	console.log(`polling every ${config.poll_interval} minute(s)`);
 
 	setInterval(compare, config.poll_interval * 60 * 1000);
