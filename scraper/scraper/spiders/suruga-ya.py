@@ -29,3 +29,5 @@ class ProductsSpider(scrapy.Spider):
                 "categories": categories,
                 "price": item.css(".price-new::text").get(),
             }
+
+        yield from response.follow_all(css="ul.pagination > li > a", callback=self.parse)
